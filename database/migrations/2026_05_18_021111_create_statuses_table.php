@@ -6,11 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up(): void
+public function up(): void
 {
 Schema::create('statuses', function (Blueprint $table) {
+
 $table->id('stat_id');
+
 $table->string('stat_name', 100);
+
+$table->timestamps();
 });
+}
+
+public function down(): void
+{
+Schema::dropIfExists('statuses');
 }
 };

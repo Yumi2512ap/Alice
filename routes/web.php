@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\StockController;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 // メインメニュー一覧表示
 Route::get('/', [MenuController::class, 'index'])
     ->name('home');
@@ -44,3 +47,10 @@ Route::post('/stock/{id}/out', [StockController::class, 'outStore'])
 Route::delete('/stock/{id}', [StockController::class, 'destroy'])
     ->name('stock.destroy');
 
+Route::get('/test-check', function () {
+    return '今このLaravelを見ています';
+});
+
+Route::get('/db-check', function () {
+    return DB::select('SHOW TABLES');
+});
