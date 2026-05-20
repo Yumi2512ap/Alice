@@ -10,82 +10,72 @@ use Carbon\Carbon;
 
 class StockController extends Controller
 {
-// 在庫一覧（在庫あり）
-public function index()
+
+public function index(Request $request)
 {
-    return view('stock.index', [
-        'stocks' => collect(),
-        'categories' => collect(),
-        'total' => 0,
-        'displayCount' => 0,
-        'totalCount' => 0,
-    ]);
+$query = Stock::with(['item.category'])
+->where('stat_id', config('constants.STAT_IN_STOCK'));
+
+if ($request->filled('keyword')) {
+$keyword = $request->keyword;
+
+$query->whereHas('item', function ($q) use ($keyword) {
+$q->where('item_name', 'LIKE', "%{$keyword}%");
+});
 }
-// public function index(Request $request)
-// {
-// $query = Stock::with(['item.category'])
-// ->where('stat_id', config('constants.STAT_IN_STOCK'));
 
-// if ($request->filled('keyword')) {
-// $keyword = $request->keyword;
+if ($request->filled('category_id')) {
+$categoryId = $request->category_id;
 
-// $query->whereHas('item', function ($q) use ($keyword) {
-// $q->where('item_name', 'LIKE', "%{$keyword}%");
-// });
-// }
+$query->whereHas('item', function ($q) use ($categoryId) {
+$q->where('category_id', $categoryId);
+});
+}
 
-// if ($request->filled('category_id')) {
-// $categoryId = $request->category_id;
+if ($request->filled('expired') && $request->expired == config('constants.EXPIRED_FLAG')) {
+$query->whereDate('expiration_date', '<', Carbon::today());
 
-// $query->whereHas('item', function ($q) use ($categoryId) {
-// $q->where('category_id', $categoryId);
-// });
-// }
+if (!$query->exists()) {
+return redirect()
+->route('stock.index')
+->with('message', '賞味期限切れは、ありません。');
+}
+}
 
-// if ($request->filled('expired') && $request->expired == config('constants.EXPIRED_FLAG')) {
-// $query->whereDate('expiration_date', '<', Carbon::today());
+if ($request->filled('sort')) {
+switch ($request->sort) {
+case config('constants.SORT_NEW'):
+$query->orderBy('arrival_date', 'desc');
+break;
 
-// if (!$query->exists()) {
-// return redirect()
-// ->route('stock.index')
-// ->with('message', '賞味期限切れは、ありません。');
-// }
-// }
+case config('constants.SORT_QTY'):
+$query->orderBy('receiving_count', 'desc');
+break;
 
-// if ($request->filled('sort')) {
-// switch ($request->sort) {
-// case config('constants.SORT_NEW'):
-// $query->orderBy('arrival_date', 'desc');
-// break;
+default:
+$query->orderBy('stock_id', 'desc');
+break;
+}
+} else {
+$query->orderBy('stock_id', 'desc');
+}
 
-// case config('constants.SORT_QTY'):
-// $query->orderBy('receiving_count', 'desc');
-// break;
+$stocks = $query->get();
 
-// default:
-// $query->orderBy('stock_id', 'desc');
-// break;
-// }
-// } else {
-// $query->orderBy('stock_id', 'desc');
-// }
+$total = Stock::where('stat_id', config('constants.STAT_IN_STOCK'))->count();
+$displayCount = $stocks->count();
+$totalCount = $stocks->sum('receiving_count');
 
-// $stocks = $query->get();
+$categories = Category::all();
 
-// $total = Stock::where('stat_id', config('constants.STAT_IN_STOCK'))->count();
-// $displayCount = $stocks->count();
-// $totalCount = $stocks->sum('receiving_count');
-
-// $categories = Category::all();
-
-// return view('stock.index', compact(
-// 'stocks',
-// 'categories',
-// 'total',
-// 'displayCount',
-// 'totalCount'
-// ));
-// }
+return view('stock.index', compact(
+'stocks',
+'categories',
+'total',
+'displayCount',
+'totalCount'
+));
+}
 
 // 在庫なし一覧
 public function out(Request $request)
@@ -147,41 +137,47 @@ return view('stock.out', compact(
 // 新規登録画面
 public function create()
 {
-$items = Item::with('category')->get();
+    $categories = Category::all();
 
-return view('stock.new', compact('items'));
+    return view('stock.new', compact('categories'));
 }
 
 // 新規登録処理
 public function store(Request $request)
 {
-$request->validate([
-'arrival_date' => 'required|date',
-'item_id' => 'required|exists:items,item_id',
-'receiving_count' => 'required|integer|min:1|max:10',
-'expiration_date' => 'nullable|date',
-]);
+    $request->validate([
+        'arrival_date' => 'required|date',
+        'category_id' => 'required|exists:categories,category_id',
+        'item_name' => 'required|string|max:100',
+        'receiving_count' => 'required|integer|min:1|max:10',
+        'expiration_date' => 'nullable|date',
+    ]);
 
-$item = Item::with('category')->findOrFail($request->item_id);
+    $category = Category::findOrFail($request->category_id);
 
-if ($request->filled('expiration_date')) {
-$expirationDate = $request->expiration_date;
-} else {
-$expirationDate = Carbon::parse($request->arrival_date)
-->addDays($item->category->best_before_date_days);
-}
+    $item = Item::create([
+        'item_name' => $request->item_name,
+        'category_id' => $request->category_id,
+    ]);
 
-Stock::create([
-'arrival_date' => $request->arrival_date,
-'receiving_count' => $request->receiving_count,
-'item_id' => $request->item_id,
-'stat_id' => config('constants.STAT_IN_STOCK'),
-'expiration_date' => $expirationDate,
-]);
+    if ($request->filled('expiration_date')) {
+        $expirationDate = $request->expiration_date;
+    } else {
+        $expirationDate = Carbon::parse($request->arrival_date)
+            ->addDays($category->best_before_date_days);
+    }
 
-return redirect()
-->route('stock.index')
-->with('message', '在庫を登録しました。');
+    Stock::create([
+        'arrival_date' => $request->arrival_date,
+        'receiving_count' => $request->receiving_count,
+        'item_id' => $item->item_id,
+        'stat_id' => config('constants.STAT_IN_STOCK'),
+        'expiration_date' => $expirationDate,
+    ]);
+
+    return redirect()
+        ->route('stock.index')
+        ->with('message', '在庫を登録しました。');
 }
 
 // 編集画面
