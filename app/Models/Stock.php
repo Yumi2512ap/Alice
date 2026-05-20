@@ -5,9 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+use App\Models\Item;
+use App\Models\Status;
+use App\Models\Issuing;
+
 class Stock extends Model
 {
 use SoftDeletes;
+
+protected $table = 'stocks';
 
 protected $primaryKey = 'stock_id';
 
