@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
 {
-Schema::create('issue_logs', function (Blueprint $table) {
+Schema::create('issuings', function (Blueprint $table) {
 $table->id('issuing_id');
 $table->unsignedBigInteger('stock_id');
 $table->date('issuing_date');

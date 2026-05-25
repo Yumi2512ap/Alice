@@ -14,6 +14,6 @@ return [
 'SORT_QTY' => 'qty',
 
 // リピート
-'REPEAT_YES' => 1,
-'REPEAT_NO' => 0,
+'REPEAT_YES' => 'リピートしたい',
+'REPEAT_NO' => 'リピートしない',
 ];
